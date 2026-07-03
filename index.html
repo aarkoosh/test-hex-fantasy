@@ -123,57 +123,39 @@ const S3 = Math.sqrt(3);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.setClearColor(0x000000);
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
-scene.fog = new THREE.Fog(0x1a1a2e, 22, 38);
 
 const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(8, 10, 10);
+camera.position.set(0, 10, 12);
 camera.lookAt(0, 0, 0);
 
 // Lights
-const ambLight = new THREE.AmbientLight(0x404060, 0.5);
+const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
 scene.add(ambLight);
 
-const dirLight = new THREE.DirectionalLight(0xffeedd, 1.8);
-dirLight.position.set(8, 15, 10);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(1024, 1024);
-dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 30;
-dirLight.shadow.camera.left = -15;
-dirLight.shadow.camera.right = 15;
-dirLight.shadow.camera.top = 15;
-dirLight.shadow.camera.bottom = -15;
+const dirLight = new THREE.DirectionalLight(0xffeedd, 2.0);
+dirLight.position.set(6, 12, 8);
 scene.add(dirLight);
 
-const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
-fillLight.position.set(-5, 8, -5);
+const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
+fillLight.position.set(-4, 6, -4);
 scene.add(fillLight);
 
-const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.6);
+const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.4);
 scene.add(hemi);
 
 // ============ TEXTURES & LOADING ============
 const texLoader = new THREE.TextureLoader();
-const mapTex = texLoader.load('Map-1.png');
+
+const mapTex = texLoader.load('Map-1.png', (t) => {
+  t.colorSpace = THREE.SRGBColorSpace;
+  scene.background = t;
+});
 const charTex1 = texLoader.load('Character-1.png');
 const charTex2 = texLoader.load('Character-2.png');
-
-// ============ GROUND PLANE ============
-const groundGeo = new THREE.PlaneGeometry(30, 30);
-const groundMat = new THREE.MeshStandardMaterial({ map: mapTex, roughness: 0.8, metalness: 0 });
-const ground = new THREE.Mesh(groundGeo, groundMat);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.05;
-ground.receiveShadow = true;
-scene.add(ground);
 
 // ============ HEX UTILITIES ============
 function oddrToWorld(col, row) {
@@ -312,8 +294,6 @@ function buildGrid() {
       });
       const mesh = new THREE.Mesh(hexGeo.clone(), mat);
       mesh.position.set(wx, 0, wz);
-      mesh.receiveShadow = true;
-      mesh.castShadow = true;
       mesh.userData = { col: c, row: r, isHex: true };
 
       // Outline
@@ -401,8 +381,6 @@ function createUnit(col, row, owner, tex, name) {
   });
   const base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = 0.03;
-  base.receiveShadow = true;
-  base.castShadow = true;
   group.add(base);
 
   // Character sprite
