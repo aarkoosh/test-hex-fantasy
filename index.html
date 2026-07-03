@@ -180,10 +180,11 @@ function loadImageAsTexture(url) {
     const img = new Image();
     img.onload = () => {
       const tex = new THREE.Texture(img);
+      tex.colorSpace = THREE.SRGBColorSpace;
       tex.needsUpdate = true;
       resolve(tex);
     };
-    img.onerror = () => reject(new Error('Failed to load: ' + url));
+    img.onerror = () => reject(new Error('Image load failed: ' + url));
     img.src = url;
   });
 }
@@ -388,13 +389,13 @@ function createUnit(col, row, owner, tex, name, unitClass, faction) {
     map: tex, transparent: true, premultipliedAlpha: false, alphaTest: 0.1,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.y = 1.0;
+  sprite.scale.y = 2.0;
   if (tex.image.width > 0) {
-    sprite.scale.x = 1.0 * (tex.image.width / tex.image.height);
+    sprite.scale.x = 2.0 * (tex.image.width / tex.image.height);
   } else {
-    sprite.scale.x = 0.7;
+    sprite.scale.x = 1.4;
   }
-  sprite.position.y = 0.5;
+  sprite.position.y = 0.8;
   group.add(sprite);
 
   // HP text (Sprite-based number display below character)
@@ -411,7 +412,7 @@ function createUnit(col, row, owner, tex, name, unitClass, faction) {
   const hpMat = new THREE.SpriteMaterial({ map: hpTex, depthTest: false });
   const hpSprite = new THREE.Sprite(hpMat);
   hpSprite.scale.set(0.5, 0.22, 1);
-  hpSprite.position.y = -0.15;
+  hpSprite.position.y = -0.35;
   group.add(hpSprite);
 
   scene.add(group);
@@ -821,11 +822,36 @@ function buildTimeline() {
     img.alt = '';
     img.onerror = () => { img.style.display = 'none'; };
     div.appendChild(img);
+    div.addEventListener('mouseenter', () => {
+      const idx = Array.from(el.children).indexOf(div);
+      if (idx === -1) return;
+      const ownerIdx = ORDER.indexOf(currentTimelineOwner);
+      const slotOwner = ORDER[(ownerIdx + idx) % 2];
+      const unit = slotOwner === 'player' ? playerUnit : aiUnit;
+      if (unit && unit.alive) {
+        document.getElementById('tip-img').src = PORTRAITS[unit.owner];
+        document.getElementById('tip-name').textContent = unit.name;
+        document.getElementById('tip-class').textContent = unit.unitClass;
+        document.getElementById('tip-faction').textContent = unit.faction;
+        document.getElementById('tip-hp').textContent = unit.hp + '/' + unit.maxHp;
+        document.getElementById('tip-ap').textContent = unit.ap + '/' + unit.maxAp;
+        document.getElementById('tip-dmg').textContent = unit.displayDmg;
+        document.getElementById('tip-arm').textContent = unit.displayArmor;
+        const rect = div.getBoundingClientRect();
+        tooltipEl.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+        tooltipEl.style.top = (rect.top - 84) + 'px';
+        tooltipEl.classList.add('show');
+      }
+    });
+    div.addEventListener('mouseleave', () => {
+      tooltipEl.classList.remove('show');
+    });
     el.appendChild(div);
   }
 }
 
 function updateTimeline(currentOwner) {
+  currentTimelineOwner = currentOwner;
   const slots = document.querySelectorAll('#timeline .slot');
   for (let i = 0; i < slots.length; i++) {
     const ownerIdx = ORDER.indexOf(currentOwner);
