@@ -12,47 +12,22 @@ canvas{display:block}
 #hud{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
 #hud>*{pointer-events:auto}
 
-#turn-indicator{
-  position:absolute;top:16px;left:50%;transform:translateX(-50%);
-  padding:8px 24px;font-size:18px;font-weight:700;
-  background:rgba(0,0,0,0.75);border:2px solid #4a4;color:#4a4;
-  transition:all 0.3s
-}
-#turn-indicator.enemy{border-color:#a44;color:#a44}
-
-#unit-panel{
-  position:absolute;top:70px;left:16px;width:220px;
-  background:rgba(0,0,0,0.8);padding:14px 16px;
-  border:1px solid rgba(255,255,255,0.15);
-  transition:opacity 0.3s
-}
-#unit-panel.hidden{opacity:0;pointer-events:none}
-#unit-panel .name{font-size:16px;font-weight:700;margin-bottom:6px}
-#unit-panel .owner{font-size:11px;opacity:0.6;margin-bottom:8px}
-.stat-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px}
-.stat-row .label{width:28px;opacity:0.7}
-.bar-bg{flex:1;height:14px;background:rgba(255,255,255,0.12);position:relative}
-.bar-fill{height:100%;transition:width 0.4s}
-.bar-fill.hp{background:linear-gradient(90deg,#e44,#4a4)}
-.bar-fill.ap{background:linear-gradient(90deg,#46a,#4cf)}
-.bar-text{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:600;text-shadow:0 0 4px #000}
-
 #msg{
-  position:absolute;bottom:80px;left:50%;transform:translateX(-50%);
-  padding:10px 24px;font-size:15px;font-weight:600;
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  padding:8px 20px;font-size:14px;font-weight:600;
   background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.2);
   opacity:0;transition:opacity 0.3s
 }
 #msg.show{opacity:1}
 
 #end-turn-btn{
-  position:absolute;bottom:24px;right:24px;
-  padding:12px 28px;border:none;
-  font-size:15px;font-weight:700;cursor:pointer;
+  position:absolute;bottom:26px;left:50%;transform:translateX(-50%);
+  padding:10px 32px;border:none;
+  font-size:14px;font-weight:700;cursor:pointer;
   background:linear-gradient(135deg,#4a4,#2a4);color:#fff;
   transition:transform 0.15s,opacity 0.3s
 }
-#end-turn-btn:hover{transform:scale(1.05)}
+#end-turn-btn:hover{}
 #end-turn-btn:active{transform:scale(0.95)}
 #end-turn-btn:disabled{opacity:0.4;cursor:default;transform:none}
 
@@ -69,18 +44,60 @@ canvas{display:block}
   padding:10px 28px;border:none;
   font-size:15px;font-weight:700;cursor:pointer;background:#4a4;color:#fff
 }
+
+#timeline{
+  position:absolute;bottom:100px;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;align-items:flex-end
+}
+#timeline .slot{
+  width:70px;height:70px;border:2px solid rgba(255,255,255,0.2);
+  background:rgba(0,0,0,0.5);overflow:hidden;
+  transition:border-color 0.3s,transform 0.3s
+}
+#timeline .slot img{width:100%;height:100%;display:block;object-fit:cover}
+#timeline .slot.current{
+  border-color:#ffd700;border-width:3px;
+  transform:scale(1.15);transform-origin:bottom center
+}
+#timeline .slot.future{opacity:0.6}
+#timeline .slot.future.two{opacity:0.35}
+
+#tooltip{
+  position:absolute;pointer-events:none;display:flex;gap:10px;
+  padding:10px 14px;background:rgba(0,0,0,0.85);
+  border:1px solid rgba(255,255,255,0.2);
+  opacity:0;transition:opacity 0.15s;white-space:nowrap
+}
+#tooltip.show{opacity:1}
+#tooltip .tip-portrait{width:48px;height:48px;border:1px solid rgba(255,255,255,0.2);overflow:hidden;flex-shrink:0}
+#tooltip .tip-portrait img{width:100%;height:100%;display:block;object-fit:cover}
+#tooltip .tip-body{display:flex;flex-direction:column;gap:1px;justify-content:center}
+#tooltip .tip-name{font-size:14px;font-weight:700;margin-bottom:3px}
+#tooltip .tip-detail{font-size:11px;opacity:0.65;margin-bottom:2px}
+#tooltip .tip-row{display:flex;justify-content:space-between;gap:18px;font-size:12px}
+#tooltip .tip-row span:last-child{font-weight:600}
+
+.faction-banner{
+  position:absolute;top:16px;padding:8px 16px;
+  font-weight:700;pointer-events:none
+}
+#faction-left{left:16px;background:rgba(20,40,140,0.85);text-align:left}
+#faction-right{right:16px;background:rgba(140,20,20,0.85);text-align:right}
+.faction-name{font-size:18px;letter-spacing:1px}
+.faction-units{font-size:12px;font-weight:400;opacity:0.85;margin-top:2px}
 </style>
 </head>
 <body>
 
 <div id="hud">
-  <div id="turn-indicator">YOUR TURN</div>
-
-  <div id="unit-panel" class="hidden">
-    <div class="name" id="u-name">—</div>
-    <div class="owner" id="u-owner">—</div>
-    <div class="stat-row"><span class="label">HP</span><div class="bar-bg"><div class="bar-fill hp" id="hp-fill" style="width:100%"><span class="bar-text" id="hp-text">10/10</span></div></div></div>
-    <div class="stat-row"><span class="label">AP</span><div class="bar-bg"><div class="bar-fill ap" id="ap-fill" style="width:100%"><span class="bar-text" id="ap-text">6/6</span></div></div></div>
+  
+  <div id="faction-left" class="faction-banner">
+    <div class="faction-name">Rohan</div>
+    <div class="faction-units">Units Remaining: <span id="left-count">1</span></div>
+  </div>
+  <div id="faction-right" class="faction-banner">
+    <div class="faction-name">Mordor</div>
+    <div class="faction-units">Units Remaining: <span id="right-count">1</span></div>
   </div>
 
   <div id="msg"></div>
@@ -91,6 +108,21 @@ canvas{display:block}
     <h1 id="go-title">Victory!</h1>
     <p id="go-sub">You defeated the enemy.</p>
     <button onclick="location.reload()">Play Again</button>
+  </div>
+
+  <div id="timeline"></div>
+
+  <div id="tooltip" class="hidden">
+    <div class="tip-portrait"><img id="tip-img" alt=""></div>
+    <div class="tip-body">
+      <div class="tip-name" id="tip-name">—</div>
+      <div class="tip-detail" id="tip-class">—</div>
+      <div class="tip-detail" id="tip-faction">—</div>
+      <div class="tip-row"><span>HP</span><span id="tip-hp">—</span></div>
+      <div class="tip-row"><span>AP</span><span id="tip-ap">—</span></div>
+      <div class="tip-row"><span>DMG</span><span id="tip-dmg">—</span></div>
+      <div class="tip-row"><span>ARMOR</span><span id="tip-arm">—</span></div>
+    </div>
   </div>
 </div>
 
@@ -110,11 +142,11 @@ import * as THREE from 'three';
 const HEX_SIZE = 0.9;
 const GRID_COLS = 10;
 const GRID_ROWS = 8;
-const MAX_AP = 6;
+const MAX_AP = 3;
 const MOVE_AP = 1;
 const ATTACK_AP = 3;
-const MAX_HP = 10;
-const ATK_DMG = 3;
+const MAX_HP = 15;
+const ATK_DMG = 5;
 const ATK_RANGE = 2;
 
 const S3 = Math.sqrt(3);
@@ -124,6 +156,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x000000);
+renderer.toneMapping = THREE.NoToneMapping;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -132,36 +165,28 @@ const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerH
 camera.position.set(0, 18, 14);
 camera.lookAt(0, 0, -3.5);
 
-// Lights
-const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
-scene.add(ambLight);
-
-const dirLight = new THREE.DirectionalLight(0xffeedd, 2.0);
-dirLight.position.set(6, 12, 8);
-scene.add(dirLight);
-
-const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
-fillLight.position.set(-4, 6, -4);
-scene.add(fillLight);
-
-const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.4);
-scene.add(hemi);
-
 // ============ TEXTURES & LOADING ============
-const texLoader = new THREE.TextureLoader();
+function loadImageAsTexture(src, onLoad) {
+  const img = new Image();
+  const canvas = document.createElement('canvas');
+  const tex = new THREE.CanvasTexture(canvas);
+  img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    tex.needsUpdate = true;
+    if (onLoad) onLoad(tex);
+  };
+  img.src = src;
+  return tex;
+}
 
-const mapTex = texLoader.load('Map-1.png', (t) => {
-  t.colorSpace = THREE.SRGBColorSpace;
-  if (t.image) {
-    const ia = t.image.width / t.image.height;
-    const va = window.innerWidth / window.innerHeight;
-    if (ia > va) { t.repeat.x = va / ia; t.offset.x = (1 - t.repeat.x) / 2; }
-    else { t.repeat.y = ia / va; t.offset.y = (1 - t.repeat.y) / 2; }
-  }
+const mapTex = loadImageAsTexture('Map-1.png', (t) => {
   scene.background = t;
 });
-const charTex1 = texLoader.load('Character-1.png');
-const charTex2 = texLoader.load('Character-2.png');
+const charTex1 = loadImageAsTexture('Character-1.png');
+const charTex2 = loadImageAsTexture('Character-2.png');
 
 // ============ HEX UTILITIES ============
 function oddrToWorld(col, row) {
@@ -356,7 +381,7 @@ function showAttackOverlay(hex) {
 const units = [];
 const unitSprites = [];
 
-function createUnit(col, row, owner, tex, name) {
+function createUnit(col, row, owner, tex, name, unitClass, faction) {
   const hd = hexData[col][row];
   hd.occupied = true;
 
@@ -371,28 +396,29 @@ function createUnit(col, row, owner, tex, name) {
   });
   const sprite = new THREE.Sprite(spriteMat);
   sprite.scale.y = 1.0;
-  if (tex.image && tex.image.width) {
+  if (tex.image.width > 0) {
     sprite.scale.x = 1.0 * (tex.image.width / tex.image.height);
   } else {
     sprite.scale.x = 0.7;
-    tex.addEventListener('load', () => {
-      sprite.scale.x = 1.0 * (tex.image.width / tex.image.height);
-    });
   }
   sprite.position.y = 0.5;
   group.add(sprite);
 
-  // HP bar (Sprite-based, below character)
+  // HP text (Sprite-based number display below character)
   const hpCanvas = document.createElement('canvas');
-  hpCanvas.width = 64; hpCanvas.height = 10;
+  hpCanvas.width = 48; hpCanvas.height = 22;
   const hpCtx = hpCanvas.getContext('2d');
-  hpCtx.fillStyle = '#333'; hpCtx.fillRect(0, 0, 64, 10);
-  hpCtx.fillStyle = '#4c4'; hpCtx.fillRect(2, 2, 60, 6);
+  hpCtx.fillStyle = '#222'; hpCtx.fillRect(0, 0, 48, 22);
+  hpCtx.fillStyle = '#fff';
+  hpCtx.font = 'bold 13px monospace';
+  hpCtx.textAlign = 'center';
+  hpCtx.textBaseline = 'middle';
+  hpCtx.fillText('15', 24, 11);
   const hpTex = new THREE.CanvasTexture(hpCanvas);
-  const hpMat = new THREE.SpriteMaterial({ map: hpTex });
+  const hpMat = new THREE.SpriteMaterial({ map: hpTex, depthTest: false });
   const hpSprite = new THREE.Sprite(hpMat);
-  hpSprite.scale.set(0.6, 0.08, 1);
-  hpSprite.position.y = -0.1;
+  hpSprite.scale.set(0.5, 0.22, 1);
+  hpSprite.position.y = -0.15;
   group.add(hpSprite);
 
   scene.add(group);
@@ -400,6 +426,10 @@ function createUnit(col, row, owner, tex, name) {
   const unit = {
     name,
     owner,
+    unitClass: unitClass || (owner === 'player' ? 'Knight' : 'Goblin'),
+    faction: faction || (owner === 'player' ? 'Kingdom' : 'Dark Horde'),
+    displayDmg: ATK_DMG,
+    displayArmor: owner === 'player' ? 3 : 1,
     col,
     row,
     hp: MAX_HP,
@@ -436,14 +466,16 @@ function positionUnitOnHex(unit, col, row) {
 }
 
 function updateHPBar(unit) {
-  const ratio = Math.max(0, unit.hp / unit.maxHp);
   const ctx = unit.hpCtx;
   const c = unit.hpCanvas;
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.fillStyle = '#222'; ctx.fillRect(0, 0, c.width, c.height);
-  const color = ratio > 0.5 ? '#4c4' : ratio > 0.25 ? '#cc4' : '#c44';
-  ctx.fillStyle = color; ctx.fillRect(2, 2, 60 * ratio, 6);
-  ctx.strokeStyle = '#000'; ctx.strokeRect(0, 0, c.width, c.height);
+  const color = unit.hp > 7 ? '#4c4' : unit.hp > 4 ? '#cc4' : '#c44';
+  ctx.fillStyle = color;
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(unit.hp), 24, 11);
   unit.hpSprite.material.map.needsUpdate = true;
 }
 
@@ -488,8 +520,14 @@ function resolveAttack(attacker, target) {
     target.hexData.occupied = false;
     target.hexData.occupant = null;
     showMsg(`${target.name} has been defeated!`);
+    updateUnitCounts();
     checkGameOver();
   }
+}
+
+function updateUnitCounts() {
+  document.getElementById('left-count').textContent = units.filter(u => u.alive && u.owner === 'player').length;
+  document.getElementById('right-count').textContent = units.filter(u => u.alive && u.owner === 'ai').length;
 }
 
 function checkGameOver() {
@@ -518,11 +556,9 @@ function startPlayerTurn() {
   selectedUnit = null;
   playerUnit.ap = MAX_AP;
   updateHPBar(playerUnit);
-  updateHUDPanel(null);
   clearOverlays();
-  document.getElementById('turn-indicator').textContent = 'YOUR TURN';
-  document.getElementById('turn-indicator').className = '';
   document.getElementById('end-turn-btn').disabled = false;
+  updateTimeline('player');
 }
 
 function endPlayerTurn() {
@@ -531,9 +567,8 @@ function endPlayerTurn() {
   clearOverlays();
   selectedUnit = null;
   gameState = STATE.AI_TURN;
-  document.getElementById('turn-indicator').textContent = 'ENEMY TURN';
-  document.getElementById('turn-indicator').className = 'enemy';
-  updateHUDPanel(null);
+
+  updateTimeline('ai');
   setTimeout(runAI, 800);
 }
 
@@ -551,7 +586,7 @@ function runAI() {
   // Check if can attack
   if (canAttack(aiUnit, playerUnit) && aiUnit.ap >= ATTACK_AP) {
     resolveAttack(aiUnit, playerUnit);
-    updateHUDPanel(null);
+  
     checkGameOver();
     if (gameState !== STATE.GAME_OVER) setTimeout(startPlayerTurn, 1000);
     return;
@@ -591,7 +626,7 @@ function runAI() {
   // Try attack after move
   if (canAttack(aiUnit, playerUnit) && aiUnit.ap >= ATTACK_AP) {
     resolveAttack(aiUnit, playerUnit);
-    updateHUDPanel(null);
+  
     checkGameOver();
   }
 
@@ -606,7 +641,6 @@ function selectUnit(unit) {
   selectedUnit = unit;
   gameState = STATE.SELECTED;
   clearOverlays();
-  updateHUDPanel(unit);
 
   // Find valid moves
   const occ = {};
@@ -651,7 +685,7 @@ function moveUnit(unit, col, row) {
     gameState = STATE.IDLE;
     selectedUnit = null;
     clearOverlays();
-    updateHUDPanel(null);
+  
   }
 }
 
@@ -667,7 +701,7 @@ function attackUnit(attacker, target) {
     gameState = STATE.IDLE;
     selectedUnit = null;
     clearOverlays();
-    updateHUDPanel(null);
+  
   }
 }
 
@@ -681,6 +715,41 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   mouseDownPos.x = e.clientX;
   mouseDownPos.y = e.clientY;
   isClick = true;
+});
+
+let hoveredUnit = null;
+const tooltipEl = document.getElementById('tooltip');
+renderer.domElement.addEventListener('pointermove', (e) => {
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(hexMeshes, false);
+  let unit = null;
+  if (hits.length > 0) {
+    const { col, row } = hits[0].object.userData;
+    unit = hexData[col][row].occupant;
+    if (unit && !unit.alive) unit = null;
+  }
+  if (unit !== hoveredUnit) {
+    hoveredUnit = unit;
+    if (unit) {
+      document.getElementById('tip-img').src = PORTRAITS[unit.owner];
+      document.getElementById('tip-name').textContent = unit.name;
+      document.getElementById('tip-class').textContent = unit.unitClass;
+      document.getElementById('tip-faction').textContent = unit.faction;
+      document.getElementById('tip-hp').textContent = unit.hp + '/' + unit.maxHp;
+      document.getElementById('tip-ap').textContent = unit.ap + '/' + unit.maxAp;
+      document.getElementById('tip-dmg').textContent = unit.displayDmg;
+      document.getElementById('tip-arm').textContent = unit.displayArmor;
+      tooltipEl.classList.add('show');
+    } else {
+      tooltipEl.classList.remove('show');
+    }
+  }
+  if (unit) {
+    tooltipEl.style.left = Math.min(e.clientX + 16, window.innerWidth - 220) + 'px';
+    tooltipEl.style.top = Math.min(e.clientY - 10, window.innerHeight - 130) + 'px';
+  }
 });
 
 renderer.domElement.addEventListener('pointerup', (e) => {
@@ -700,7 +769,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
       gameState = STATE.IDLE;
       selectedUnit = null;
       clearOverlays();
-      updateHUDPanel(null);
+
     }
     return;
   }
@@ -733,26 +802,10 @@ renderer.domElement.addEventListener('pointerup', (e) => {
       gameState = STATE.IDLE;
       selectedUnit = null;
       clearOverlays();
-      updateHUDPanel(null);
+
     }
   }
 });
-
-// ============ HUD ============
-function updateHUDPanel(unit) {
-  const panel = document.getElementById('unit-panel');
-  if (!unit || !unit.alive) {
-    panel.classList.add('hidden');
-    return;
-  }
-  panel.classList.remove('hidden');
-  document.getElementById('u-name').textContent = unit.name;
-  document.getElementById('u-owner').textContent = unit.owner === 'player' ? 'Your Unit' : 'Enemy Unit';
-  document.getElementById('hp-fill').style.width = (unit.hp / unit.maxHp * 100) + '%';
-  document.getElementById('hp-text').textContent = unit.hp + '/' + unit.maxHp;
-  document.getElementById('ap-fill').style.width = (unit.ap / unit.maxAp * 100) + '%';
-  document.getElementById('ap-text').textContent = unit.ap + '/' + unit.maxAp;
-}
 
 function showMsg(text) {
   const el = document.getElementById('msg');
@@ -763,6 +816,44 @@ function showMsg(text) {
 }
 
 document.getElementById('end-turn-btn').addEventListener('click', endPlayerTurn);
+document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); endPlayerTurn(); } });
+
+// ============ TIMELINE ============
+const PORTRAITS = { player: 'Portrait-1a.png', ai: 'Portrait-2a.png' };
+const ORDER = ['player', 'ai'];
+
+function buildTimeline() {
+  const el = document.getElementById('timeline');
+  el.innerHTML = '';
+  for (let i = 0; i < 5; i++) {
+    const div = document.createElement('div');
+    div.className = 'slot';
+    const img = document.createElement('img');
+    img.alt = '';
+    div.appendChild(img);
+    el.appendChild(div);
+  }
+}
+
+function updateTimeline(currentOwner) {
+  const slots = document.querySelectorAll('#timeline .slot');
+  for (let i = 0; i < slots.length; i++) {
+    const ownerIdx = ORDER.indexOf(currentOwner);
+    const slotOwner = ORDER[(ownerIdx + i) % 2];
+    const img = slots[i].querySelector('img');
+    img.src = PORTRAITS[slotOwner];
+    slots[i].className = 'slot';
+    if (i === 0) {
+      slots[i].classList.add('current');
+    } else if (i <= 2) {
+      slots[i].classList.add('future');
+    } else {
+      slots[i].classList.add('future', 'two');
+    }
+  }
+}
+
+buildTimeline();
 
 // ============ WINDOW RESIZE ============
 window.addEventListener('resize', () => {
@@ -779,10 +870,11 @@ function animate() {
 animate();
 
 // ============ INIT ============
-playerUnit = createUnit(1, 3, 'player', charTex1, 'Hero');
-aiUnit = createUnit(8, 4, 'ai', charTex2, 'Goblin');
+playerUnit = createUnit(1, 3, 'player', charTex1, 'Aragorn', 'Ranger', 'Rohan');
+aiUnit = createUnit(8, 4, 'ai', charTex2, 'Goblin', 'Orc', 'Mordor');
 updateHPBar(playerUnit);
 updateHPBar(aiUnit);
+updateUnitCounts();
 startPlayerTurn();
 showMsg('Select your Hero to begin');
 
