@@ -128,9 +128,9 @@ document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 13, 16);
-camera.lookAt(0, 0, -2);
+const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 50);
+camera.position.set(0, 12, 15);
+camera.lookAt(0, 0, -3.5);
 
 // Lights
 const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -152,6 +152,12 @@ const texLoader = new THREE.TextureLoader();
 
 const mapTex = texLoader.load('Map-1.png', (t) => {
   t.colorSpace = THREE.SRGBColorSpace;
+  if (t.image) {
+    const ia = t.image.width / t.image.height;
+    const va = window.innerWidth / window.innerHeight;
+    if (ia > va) { t.repeat.x = va / ia; t.offset.x = (1 - t.repeat.x) / 2; }
+    else { t.repeat.y = ia / va; t.offset.y = (1 - t.repeat.y) / 2; }
+  }
   scene.background = t;
 });
 const charTex1 = texLoader.load('Character-1.png');
@@ -260,7 +266,7 @@ function buildGrid() {
     }
   }
   gridOffsetX = -(minX + maxX) / 2;
-  gridOffsetZ = -(minZ + maxZ) / 2 - 2;
+  gridOffsetZ = -(minZ + maxZ) / 2 - 3.5;
 
   const corners = hexCorners(HEX_SIZE);
   const verts = [];
@@ -360,31 +366,33 @@ function createUnit(col, row, owner, tex, name) {
   group.position.set(wx, 0, wz);
 
   // Character sprite
-  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const spriteMat = new THREE.SpriteMaterial({
+    map: tex, transparent: true, premultipliedAlpha: false, alphaTest: 0.1,
+  });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.y = 0.7;
+  sprite.scale.y = 1.0;
   if (tex.image && tex.image.width) {
-    sprite.scale.x = 0.7 * (tex.image.width / tex.image.height);
+    sprite.scale.x = 1.0 * (tex.image.width / tex.image.height);
   } else {
-    sprite.scale.x = 0.5;
+    sprite.scale.x = 0.7;
     tex.addEventListener('load', () => {
-      sprite.scale.x = 0.7 * (tex.image.width / tex.image.height);
+      sprite.scale.x = 1.0 * (tex.image.width / tex.image.height);
     });
   }
-  sprite.position.y = 0.35;
+  sprite.position.y = 0.5;
   group.add(sprite);
 
   // HP bar (Sprite-based, below character)
   const hpCanvas = document.createElement('canvas');
   hpCanvas.width = 64; hpCanvas.height = 10;
   const hpCtx = hpCanvas.getContext('2d');
-  hpCtx.fillStyle = '#222'; hpCtx.fillRect(0, 0, 64, 10);
+  hpCtx.fillStyle = '#333'; hpCtx.fillRect(0, 0, 64, 10);
   hpCtx.fillStyle = '#4c4'; hpCtx.fillRect(2, 2, 60, 6);
   const hpTex = new THREE.CanvasTexture(hpCanvas);
-  const hpMat = new THREE.SpriteMaterial({ map: hpTex, transparent: true });
+  const hpMat = new THREE.SpriteMaterial({ map: hpTex });
   const hpSprite = new THREE.Sprite(hpMat);
-  hpSprite.scale.set(0.5, 0.06, 1);
-  hpSprite.position.y = -0.05;
+  hpSprite.scale.set(0.6, 0.08, 1);
+  hpSprite.position.y = -0.1;
   group.add(hpSprite);
 
   scene.add(group);
