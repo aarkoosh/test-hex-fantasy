@@ -811,6 +811,7 @@ document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.repea
 // ============ TIMELINE ============
 const PORTRAITS = { player: 'Portrait-1a.png', ai: 'Portrait-2a.png' };
 const ORDER = ['player', 'ai'];
+let currentTimelineOwner = 'player';
 
 function buildTimeline() {
   const el = document.getElementById('timeline');
