@@ -1,1 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hex Fantasy Strategy</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#111;font-family:'Segoe UI',sans-serif;color:#fff;user-select:none}
+canvas{display:block}
 
+#hud{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+#hud>*{pointer-events:auto}
+
+#turn-indicator{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  padding:8px 24px;border-radius:6px;font-size:18px;font-weight:700;
+  background:rgba(0,0,0,0.75);border:2px solid #4a4;color:#4a4;
+  transition:all 0.3s
+}
+#turn-indicator.enemy{border-color:#a44;color:#a44}
+
+#unit-panel{
+  position:absolute;top:70px;left:16px;width:220px;
+  background:rgba(0,0,0,0.8);border-radius:8px;padding:14px 16px;
+  border:1px solid rgba(255,255,255,0.15);
+  transition:opacity 0.3s
+}
+#unit-panel.hidden{opacity:0;pointer-events:none}
+#unit-panel .name{font-size:16px;font-weight:700;margin-bottom:6px}
+#unit-panel .owner{font-size:11px;opacity:0.6;margin-bottom:8px}
+.stat-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px}
+.stat-row .label{width:28px;opacity:0.7}
+.bar-bg{flex:1;height:14px;background:rgba(255,255,255,0.12);border-radius:7px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:7px;transition:width 0.4s}
+.bar-fill.hp{background:linear-gradient(90deg,#e44,#4a4)}
+.bar-fill.ap{background:linear-gradient(90deg,#46a,#4cf)}
+.bar-text{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:600;text-shadow:0 0 4px #000}
+
+#msg{
+  position:absolute;bottom:80px;left:50%;transform:translateX(-50%);
+  padding:10px 24px;border-radius:6px;font-size:15px;font-weight:600;
+  background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.2);
+  opacity:0;transition:opacity 0.3s
+}
+#msg.show{opacity:1}
+
+#end-turn-btn{
+  position:absolute;bottom:24px;right:24px;
+  padding:12px 28px;border:none;border-radius:8px;
+  font-size:15px;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,#4a4,#2a4);color:#fff;
+  transition:transform 0.15s,opacity 0.3s
+}
+#end-turn-btn:hover{transform:scale(1.05)}
+#end-turn-btn:active{transform:scale(0.95)}
+#end-turn-btn:disabled{opacity:0.4;cursor:default;transform:none}
+
+#game-over{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  padding:32px 48px;border-radius:12px;text-align:center;
+  background:rgba(0,0,0,0.9);border:2px solid #fff;
+  display:none
+}
+#game-over.show{display:block}
+#game-over h1{font-size:32px;margin-bottom:12px}
+#game-over p{font-size:16px;opacity:0.7;margin-bottom:20px}
+#game-over button{
+  padding:10px 28px;border:none;border-radius:6px;
+  font-size:15px;font-weight:700;cursor:pointer;background:#4a4;color:#fff
+}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="turn-indicator">YOUR TURN</div>
+
+  <div id="unit-panel" class="hidden">
+    <div class="name" id="u-name">—</div>
+    <div class="owner" id="u-owner">—</div>
+    <div class="stat-row"><span class="label">HP</span><div class="bar-bg"><div class="bar-fill hp" id="hp-fill" style="width:100%"><span class="bar-text" id="hp-text">10/10</span></div></div></div>
+    <div class="stat-row"><span class="label">AP</span><div class="bar-bg"><div class="bar-fill ap" id="ap-fill" style="width:100%"><span class="bar-text" id="ap-text">6/6</span></div></div></div>
+  </div>
+
+  <div id="msg"></div>
+
+  <button id="end-turn-btn">END TURN</button>
+
+  <div id="game-over">
+    <h1 id="go-title">Victory!</h1>
+    <p id="go-sub">You defeated the enemy.</p>
+    <button onclick="location.reload()">Play Again</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ============ CONSTANTS ============
+const HEX_SIZE = 0.9;
+const GRID_COLS = 10;
+const GRID_ROWS = 8;
+const MAX_AP = 6;
+const MOVE_AP = 1;
+const ATTACK_AP = 3;
+const MAX_HP = 10;
+const ATK_DMG = 3;
+const ATK_RANGE = 2;
+
+const S3 = Math.sqrt(3);
+
+// ============ SCENE SETUP ============
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 22, 38);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 50);
+camera.position.set(0, 12, 13);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 6;
+controls.maxDistance = 25;
+controls.maxPolarAngle = Math.PI / 2.15;
+controls.update();
+
+// Lights
+const ambLight = new THREE.AmbientLight(0x404060, 0.5);
+scene.add(ambLight);
+
+const dirLight = new THREE.DirectionalLight(0xffeedd, 1.8);
+dirLight.position.set(8, 15, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 30;
+dirLight.shadow.camera.left = -15;
+dirLight.shadow.camera.right = 15;
+dirLight.shadow.camera.top = 15;
+dirLight.shadow.camera.bottom = -15;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
+fillLight.position.set(-5, 8, -5);
+scene.add(fillLight);
+
+const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.6);
+scene.add(hemi);
+
+// ============ TEXTURES & LOADING ============
+const texLoader = new THREE.TextureLoader();
+const mapTex = texLoader.load('Map-1.png');
+const charTex1 = texLoader.load('Character-1.png');
+const charTex2 = texLoader.load('Character-2.png');
+
+// ============ GROUND PLANE ============
+const groundGeo = new THREE.PlaneGeometry(30, 30);
+const groundMat = new THREE.MeshStandardMaterial({ map: mapTex, roughness: 0.8, metalness: 0 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.05;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ============ HEX UTILITIES ============
+function oddrToWorld(col, row) {
+  const x = HEX_SIZE * S3 * (col + 0.5 * (row & 1));
+  const z = HEX_SIZE * 1.5 * row;
+  return { x, z };
+}
+
+function hexCorners(size) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 2 - Math.PI / 3 * i;
+    pts.push(new THREE.Vector3(size * Math.cos(a), 0, size * Math.sin(a)));
+  }
+  return pts;
+}
+
+function worldToOddr(wx, wz) {
+  let best = null;
+  let bestDist = Infinity;
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const p = oddrToWorld(c, r);
+      const d = (wx - p.x) ** 2 + (wz - p.z) ** 2;
+      if (d < bestDist) { bestDist = d; best = { col: c, row: r }; }
+    }
+  }
+  return best;
+}
+
+// BFS: find all hexes reachable within maxSteps, returns map of "col,row" -> path[]
+function bfsReachable(startCol, startRow, maxSteps, occupiedHex) {
+  const key = (c, r) => c + ',' + r;
+  const startKey = key(startCol, startRow);
+  const dist = { [startKey]: 0 };
+  const parent = { [startKey]: null };
+  const queue = [{ col: startCol, row: startRow }];
+  const result = {};
+
+  while (queue.length) {
+    const { col, row } = queue.shift();
+    const d = dist[key(col, row)];
+    if (d > 0) result[key(col, row)] = rebuildPath(parent, col, row);
+
+    if (d >= maxSteps) continue;
+
+    for (const nb of getNeighbors(col, row)) {
+      const nk = key(nb.col, nb.row);
+      if (dist[nk] !== undefined) continue;
+      if (occupiedHex && occupiedHex[nk]) continue;
+      dist[nk] = d + 1;
+      parent[nk] = { col, row };
+      queue.push(nb);
+    }
+  }
+  return result;
+}
+
+function rebuildPath(parent, col, row) {
+  const path = [];
+  let cur = { col, row };
+  while (parent[cur.col + ',' + cur.row]) {
+    path.unshift(cur);
+    cur = parent[cur.col + ',' + cur.row];
+  }
+  return path;
+}
+
+// For pointy-top odd-r, neighbors differ by row parity
+function getNeighbors(col, row) {
+  const odd = row & 1;
+  const dirs = odd
+    ? [[0,-1],[1,-1],[-1,0],[1,0],[0,1],[1,1]]
+    : [[-1,-1],[0,-1],[-1,0],[1,0],[-1,1],[0,1]];
+  const result = [];
+  for (const [dc, dr] of dirs) {
+    const nc = col + dc, nr = row + dr;
+    if (nc >= 0 && nc < GRID_COLS && nr >= 0 && nr < GRID_ROWS) result.push({ col: nc, row: nr });
+  }
+  return result;
+}
+
+// ============ HEX GRID ============
+const hexData = [];
+const hexMeshes = [];
+const hexGroup = new THREE.Group();
+
+let gridOffsetX = 0, gridOffsetZ = 0;
+
+function buildGrid() {
+  // Compute bounds for centering
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const posCache = [];
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const p = oddrToWorld(c, r);
+      posCache.push(p);
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    }
+  }
+  gridOffsetX = -(minX + maxX) / 2;
+  gridOffsetZ = -(minZ + maxZ) / 2;
+
+  const corners = hexCorners(HEX_SIZE);
+  const verts = [];
+  for (const v of corners) verts.push(v.x, v.y, v.z);
+  const idx = [];
+  for (let i = 2; i <= 5; i++) idx.push(0, i - 1, i);
+
+  const hexGeo = new THREE.BufferGeometry();
+  hexGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  hexGeo.setIndex(idx);
+  hexGeo.computeVertexNormals();
+
+  const linePts = [...corners, corners[0]];
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
+
+  let idx2 = 0;
+  for (let c = 0; c < GRID_COLS; c++) {
+    hexData[c] = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const p = posCache[idx2++];
+      const wx = p.x + gridOffsetX;
+      const wz = p.z + gridOffsetZ;
+
+      // Fill
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x8a9a6a,
+        roughness: 0.7,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const mesh = new THREE.Mesh(hexGeo.clone(), mat);
+      mesh.position.set(wx, 0, wz);
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      mesh.userData = { col: c, row: r, isHex: true };
+
+      // Outline
+      const lineMat2 = new THREE.LineBasicMaterial({ color: 0x3a4a2a, transparent: true, opacity: 0.5 });
+      const line = new THREE.Line(lineGeo.clone(), lineMat2);
+      line.position.set(wx, 0.005, wz);
+
+      const g = new THREE.Group();
+      g.add(mesh);
+      g.add(line);
+      g.position.set(0, 0, 0);
+      hexGroup.add(g);
+
+      hexMeshes.push(mesh);
+      hexData[c][r] = { col: c, row: r, mesh, group: g, worldX: wx, worldZ: wz, occupied: false, occupant: null };
+    }
+  }
+  scene.add(hexGroup);
+}
+
+buildGrid();
+
+// ============ OVERLAY HIGHLIGHTS ============
+const overlayGroup = new THREE.Group();
+overlayGroup.position.y = 0.01;
+scene.add(overlayGroup);
+
+const overlayGeo = (() => {
+  const c = hexCorners(HEX_SIZE * 0.85);
+  const v = [];
+  for (const p of c) v.push(p.x, p.y, p.z);
+  const idx = [];
+  for (let i = 2; i <= 5; i++) idx.push(0, i - 1, i);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  g.setIndex(idx);
+  return g;
+})();
+
+const moveMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.35, depthWrite: false });
+const atkMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.35, depthWrite: false });
+
+let overlayMeshes = [];
+
+function clearOverlays() {
+  for (const m of overlayMeshes) { overlayGroup.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  overlayMeshes = [];
+}
+
+function showMoveOverlays(hexes) {
+  for (const h of hexes) {
+    const m = new THREE.Mesh(overlayGeo.clone(), moveMat.clone());
+    m.position.set(h.worldX, 0, h.worldZ);
+    overlayGroup.add(m);
+    overlayMeshes.push(m);
+  }
+}
+
+function showAttackOverlay(hex) {
+  const m = new THREE.Mesh(overlayGeo.clone(), atkMat.clone());
+  m.position.set(hex.worldX, 0, hex.worldZ);
+  overlayGroup.add(m);
+  overlayMeshes.push(m);
+}
+
+// ============ UNITS ============
+const units = [];
+const unitSprites = [];
+
+function createUnit(col, row, owner, tex, name) {
+  const hd = hexData[col][row];
+  hd.occupied = true;
+
+  // Group
+  const group = new THREE.Group();
+  const wx = hd.worldX, wz = hd.worldZ;
+  group.position.set(wx, 0, wz);
+
+  // Base disc
+  const baseGeo = new THREE.CylinderGeometry(0.35, 0.4, 0.06, 24);
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: owner === 'player' ? 0x4488ff : 0xff4444,
+    roughness: 0.4,
+    metalness: 0.3,
+  });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.03;
+  base.receiveShadow = true;
+  base.castShadow = true;
+  group.add(base);
+
+  // Character sprite
+  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(0.7, 0.7, 1);
+  sprite.position.y = 0.45;
+  group.add(sprite);
+
+  // HP bar (Sprite-based, always faces camera)
+  const hpCanvas = document.createElement('canvas');
+  hpCanvas.width = 64; hpCanvas.height = 10;
+  const hpCtx = hpCanvas.getContext('2d');
+  hpCtx.fillStyle = '#222'; hpCtx.fillRect(0, 0, 64, 10);
+  hpCtx.fillStyle = '#4c4'; hpCtx.fillRect(2, 2, 60, 6);
+  hpCtx.strokeStyle = '#000'; hpCtx.strokeRect(0, 0, 64, 10);
+  const hpTex = new THREE.CanvasTexture(hpCanvas);
+  const hpMat = new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthWrite: false });
+  const hpSprite = new THREE.Sprite(hpMat);
+  hpSprite.scale.set(0.5, 0.07, 1);
+  hpSprite.position.y = 0.85;
+  group.add(hpSprite);
+
+  scene.add(group);
+
+  const unit = {
+    name,
+    owner,
+    col,
+    row,
+    hp: MAX_HP,
+    maxHp: MAX_HP,
+    ap: MAX_AP,
+    maxAp: MAX_AP,
+    attackRange: ATK_RANGE,
+    attackDmg: ATK_DMG,
+    group,
+    sprite,
+    base,
+    baseMat,
+    hpSprite,
+    hpCanvas,
+    hpCtx,
+    hexData: hd,
+    alive: true,
+  };
+
+  hd.occupant = unit;
+  units.push(unit);
+  unitSprites.push(sprite);
+  return unit;
+}
+
+function unitWorldPos(unit) {
+  return { x: unit.group.position.x, z: unit.group.position.z };
+}
+
+function positionUnitOnHex(unit, col, row) {
+  const hd = hexData[col][row];
+  unit.group.position.set(hd.worldX, 0, hd.worldZ);
+  unit.col = col;
+  unit.row = row;
+}
+
+function updateHPBar(unit) {
+  const ratio = Math.max(0, unit.hp / unit.maxHp);
+  const ctx = unit.hpCtx;
+  const c = unit.hpCanvas;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#222'; ctx.fillRect(0, 0, c.width, c.height);
+  const color = ratio > 0.5 ? '#4c4' : ratio > 0.25 ? '#cc4' : '#c44';
+  ctx.fillStyle = color; ctx.fillRect(2, 2, 60 * ratio, 6);
+  ctx.strokeStyle = '#000'; ctx.strokeRect(0, 0, c.width, c.height);
+  unit.hpSprite.material.map.needsUpdate = true;
+}
+
+// ============ GAME STATE ============
+const STATE = { IDLE: 0, SELECTED: 1, MOVING: 2, ATTACKING: 3, AI_TURN: 4, GAME_OVER: 5 };
+let gameState = STATE.IDLE;
+let selectedUnit = null;
+let validMoves = [];
+let validAttacks = [];
+
+let playerUnit, aiUnit;
+
+// ============ COMBAT ============
+function oddrDist(a, b) {
+  const aq = a.col - (a.row - (a.row & 1)) / 2;
+  const ar = a.row;
+  const as = -aq - ar;
+  const bq = b.col - (b.row - (b.row & 1)) / 2;
+  const br = b.row;
+  const bs = -bq - br;
+  return Math.max(Math.abs(aq - bq), Math.abs(ar - br), Math.abs(as - bs));
+}
+
+function canAttack(attacker, target) {
+  if (!attacker.alive || !target.alive) return false;
+  const dist = oddrDist(attacker, target);
+  return dist <= attacker.attackRange && dist > 0;
+}
+
+function resolveAttack(attacker, target) {
+  target.hp -= attacker.attackDmg;
+  if (target.hp < 0) target.hp = 0;
+  updateHPBar(target);
+  attacker.ap -= ATTACK_AP;
+  if (attacker.ap < 0) attacker.ap = 0;
+
+  showMsg(`${attacker.name} attacks ${target.name} for ${attacker.attackDmg} damage!`);
+
+  if (target.hp <= 0) {
+    target.alive = false;
+    target.group.visible = false;
+    target.hexData.occupied = false;
+    target.hexData.occupant = null;
+    showMsg(`${target.name} has been defeated!`);
+    checkGameOver();
+  }
+}
+
+function checkGameOver() {
+  if (!aiUnit.alive) {
+    gameOver(true);
+  } else if (!playerUnit.alive) {
+    gameOver(false);
+  }
+}
+
+function gameOver(playerWon) {
+  gameState = STATE.GAME_OVER;
+  const el = document.getElementById('game-over');
+  el.classList.add('show');
+  document.getElementById('go-title').textContent = playerWon ? 'Victory!' : 'Defeat';
+  document.getElementById('go-sub').textContent = playerWon
+    ? 'You defeated the enemy forces.'
+    : 'Your hero has fallen.';
+  document.getElementById('end-turn-btn').style.display = 'none';
+}
+
+// ============ TURN MANAGEMENT ============
+function startPlayerTurn() {
+  if (!playerUnit || !playerUnit.alive || !aiUnit || !aiUnit.alive) return;
+  gameState = STATE.IDLE;
+  selectedUnit = null;
+  playerUnit.ap = MAX_AP;
+  updateHPBar(playerUnit);
+  updateHUDPanel(null);
+  clearOverlays();
+  document.getElementById('turn-indicator').textContent = 'YOUR TURN';
+  document.getElementById('turn-indicator').className = '';
+  document.getElementById('end-turn-btn').disabled = false;
+}
+
+function endPlayerTurn() {
+  if (gameState === STATE.GAME_OVER) return;
+  document.getElementById('end-turn-btn').disabled = true;
+  clearOverlays();
+  selectedUnit = null;
+  gameState = STATE.AI_TURN;
+  document.getElementById('turn-indicator').textContent = 'ENEMY TURN';
+  document.getElementById('turn-indicator').className = 'enemy';
+  updateHUDPanel(null);
+  setTimeout(runAI, 800);
+}
+
+function runAI() {
+  if (!aiUnit.alive || gameState === STATE.GAME_OVER) { startPlayerTurn(); return; }
+
+  aiUnit.ap = MAX_AP;
+
+  // Find shortest path to player
+  const occ = {};
+  occ[aiUnit.col + ',' + aiUnit.row] = true;
+  occ[playerUnit.col + ',' + playerUnit.row] = true;
+  const reachable = bfsReachable(aiUnit.col, aiUnit.row, aiUnit.ap, occ);
+
+  // Check if can attack
+  if (canAttack(aiUnit, playerUnit) && aiUnit.ap >= ATTACK_AP) {
+    resolveAttack(aiUnit, playerUnit);
+    updateHUDPanel(null);
+    checkGameOver();
+    if (gameState !== STATE.GAME_OVER) setTimeout(startPlayerTurn, 1000);
+    return;
+  }
+
+  // Move toward player (greedy: pick closest reachable hex to player)
+  let bestHex = null;
+  let bestDist = Infinity;
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      if (hexData[c][r].occupied) continue;
+      const dist = oddrDist({ col: c, row: r }, { col: playerUnit.col, row: playerUnit.row });
+      if (dist < bestDist) {
+        const k = c + ',' + r;
+        if (reachable[k]) {
+          bestDist = dist;
+          bestHex = { col: c, row: r, path: reachable[k] };
+        }
+      }
+    }
+  }
+
+  if (bestHex && bestHex.path && bestHex.path.length > 0) {
+    const target = bestHex.path[bestHex.path.length - 1];
+    const steps = bestHex.path.length;
+    if (steps <= aiUnit.ap) {
+      // Occupy new hex
+      hexData[aiUnit.col][aiUnit.row].occupied = false;
+      hexData[aiUnit.col][aiUnit.row].occupant = null;
+      positionUnitOnHex(aiUnit, target.col, target.row);
+      hexData[target.col][target.row].occupied = true;
+      hexData[target.col][target.row].occupant = aiUnit;
+      aiUnit.ap -= steps * MOVE_AP;
+    }
+  }
+
+  // Try attack after move
+  if (canAttack(aiUnit, playerUnit) && aiUnit.ap >= ATTACK_AP) {
+    resolveAttack(aiUnit, playerUnit);
+    updateHUDPanel(null);
+    checkGameOver();
+  }
+
+  setTimeout(startPlayerTurn, 1000);
+}
+
+// ============ SELECTION & ACTIONS ============
+function selectUnit(unit) {
+  if (gameState === STATE.AI_TURN || gameState === STATE.GAME_OVER) return;
+  if (!unit.alive || unit.owner !== 'player') return;
+
+  selectedUnit = unit;
+  gameState = STATE.SELECTED;
+  clearOverlays();
+  updateHUDPanel(unit);
+
+  // Find valid moves
+  const occ = {};
+  occ[unit.col + ',' + unit.row] = true;
+  occ[aiUnit.col + ',' + aiUnit.row] = true;
+  validMoves = bfsReachable(unit.col, unit.row, unit.ap, occ);
+
+  const moveHexes = [];
+  for (const k in validMoves) {
+    const [c, r] = k.split(',').map(Number);
+    moveHexes.push(hexData[c][r]);
+  }
+  showMoveOverlays(moveHexes);
+
+  // Find valid attacks
+  validAttacks = [];
+  if (unit.ap >= ATTACK_AP && canAttack(unit, aiUnit)) {
+    validAttacks.push(aiUnit);
+    showAttackOverlay(aiUnit.hexData);
+  }
+}
+
+function moveUnit(unit, col, row) {
+  const key2 = col + ',' + row;
+  const path = validMoves[key2];
+  if (!path) return;
+  const steps = path.length;
+  if (steps > unit.ap) return;
+
+  hexData[unit.col][unit.row].occupied = false;
+  hexData[unit.col][unit.row].occupant = null;
+  positionUnitOnHex(unit, col, row);
+  hexData[col][row].occupied = true;
+  hexData[col][row].occupant = unit;
+  unit.ap -= steps * MOVE_AP;
+
+  checkGameOver();
+  if (gameState === STATE.GAME_OVER) return;
+  if (unit.ap > 0) {
+    selectUnit(unit);
+  } else {
+    gameState = STATE.IDLE;
+    selectedUnit = null;
+    clearOverlays();
+    updateHUDPanel(null);
+  }
+}
+
+function attackUnit(attacker, target) {
+  if (!canAttack(attacker, target)) return;
+  if (attacker.ap < ATTACK_AP) { showMsg('Not enough AP!'); return; }
+  resolveAttack(attacker, target);
+  checkGameOver();
+  if (gameState === STATE.GAME_OVER) return;
+  if (attacker.ap > 0) {
+    selectUnit(attacker);
+  } else {
+    gameState = STATE.IDLE;
+    selectedUnit = null;
+    clearOverlays();
+    updateHUDPanel(null);
+  }
+}
+
+// ============ INPUT ============
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let mouseDownPos = { x: 0, y: 0 };
+let isClick = false;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  mouseDownPos.x = e.clientX;
+  mouseDownPos.y = e.clientY;
+  isClick = true;
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const dx = e.clientX - mouseDownPos.x;
+  const dy = e.clientY - mouseDownPos.y;
+  if (Math.sqrt(dx * dx + dy * dy) > 5) { isClick = false; return; }
+  if (!isClick) return;
+  if (gameState === STATE.AI_TURN || gameState === STATE.GAME_OVER) return;
+
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(hexMeshes, false);
+  if (hits.length === 0) {
+    // Click on empty space -> deselect
+    if (gameState === STATE.SELECTED) {
+      gameState = STATE.IDLE;
+      selectedUnit = null;
+      clearOverlays();
+      updateHUDPanel(null);
+    }
+    return;
+  }
+
+  const hit = hits[0].object;
+  const { col, row } = hit.userData;
+  const targetHex = hexData[col][row];
+  const targetUnit = targetHex.occupant;
+
+  if (gameState === STATE.IDLE) {
+    // Try to select
+    if (targetUnit && targetUnit.alive && targetUnit.owner === 'player') {
+      selectUnit(targetUnit);
+    }
+  } else if (gameState === STATE.SELECTED && selectedUnit) {
+    const key2 = col + ',' + row;
+    if (targetUnit && targetUnit.alive && targetUnit.owner === 'ai') {
+      // Try attack
+      if (validAttacks.includes(targetUnit) && selectedUnit.ap >= ATTACK_AP) {
+        attackUnit(selectedUnit, targetUnit);
+      } else {
+        showMsg('Target out of range or insufficient AP');
+      }
+    } else if (validMoves[key2]) {
+      moveUnit(selectedUnit, col, row);
+    } else if (targetUnit && targetUnit.owner === 'player' && targetUnit.alive) {
+      // Select different player unit (only one exists in 1v1)
+      selectUnit(targetUnit);
+    } else {
+      gameState = STATE.IDLE;
+      selectedUnit = null;
+      clearOverlays();
+      updateHUDPanel(null);
+    }
+  }
+});
+
+// ============ HUD ============
+function updateHUDPanel(unit) {
+  const panel = document.getElementById('unit-panel');
+  if (!unit || !unit.alive) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  document.getElementById('u-name').textContent = unit.name;
+  document.getElementById('u-owner').textContent = unit.owner === 'player' ? 'Your Unit' : 'Enemy Unit';
+  document.getElementById('hp-fill').style.width = (unit.hp / unit.maxHp * 100) + '%';
+  document.getElementById('hp-text').textContent = unit.hp + '/' + unit.maxHp;
+  document.getElementById('ap-fill').style.width = (unit.ap / unit.maxAp * 100) + '%';
+  document.getElementById('ap-text').textContent = unit.ap + '/' + unit.maxAp;
+}
+
+function showMsg(text) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+document.getElementById('end-turn-btn').addEventListener('click', endPlayerTurn);
+
+// ============ WINDOW RESIZE ============
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============ GAME LOOP ============
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ============ INIT ============
+playerUnit = createUnit(1, 3, 'player', charTex1, 'Hero');
+aiUnit = createUnit(8, 4, 'ai', charTex2, 'Goblin');
+updateHPBar(playerUnit);
+updateHPBar(aiUnit);
+startPlayerTurn();
+showMsg('Select your Hero to begin');
+
+// Camera start angle
+controls.target.set(0, 0, 0);
+camera.position.set(6, 10, 12);
+controls.update();
+
+console.log('Hex Fantasy Strategy loaded. Good luck!');
+</script>
+</body>
+</html>
