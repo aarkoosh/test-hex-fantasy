@@ -129,8 +129,8 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 10, 12);
-camera.lookAt(0, 0, 0);
+camera.position.set(0, 13, 16);
+camera.lookAt(0, 0, -2);
 
 // Lights
 const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -260,7 +260,7 @@ function buildGrid() {
     }
   }
   gridOffsetX = -(minX + maxX) / 2;
-  gridOffsetZ = -(minZ + maxZ) / 2;
+  gridOffsetZ = -(minZ + maxZ) / 2 - 2;
 
   const corners = hexCorners(HEX_SIZE);
   const verts = [];
@@ -284,20 +284,16 @@ function buildGrid() {
       const wx = p.x + gridOffsetX;
       const wz = p.z + gridOffsetZ;
 
-      // Fill
+      // Invisible fill (for raycasting)
       const mat = new THREE.MeshStandardMaterial({
-        color: 0x8a9a6a,
-        roughness: 0.7,
-        metalness: 0,
-        transparent: true,
-        opacity: 0.45,
+        color: 0xffffff, transparent: true, opacity: 0, depthWrite: false,
       });
       const mesh = new THREE.Mesh(hexGeo.clone(), mat);
       mesh.position.set(wx, 0, wz);
       mesh.userData = { col: c, row: r, isHex: true };
 
-      // Outline
-      const lineMat2 = new THREE.LineBasicMaterial({ color: 0x3a4a2a, transparent: true, opacity: 0.5 });
+      // White outline
+      const lineMat2 = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
       const line = new THREE.Line(lineGeo.clone(), lineMat2);
       line.position.set(wx, 0.005, wz);
 
@@ -321,20 +317,11 @@ const overlayGroup = new THREE.Group();
 overlayGroup.position.y = 0.01;
 scene.add(overlayGroup);
 
-const overlayGeo = (() => {
-  const c = hexCorners(HEX_SIZE * 0.85);
-  const v = [];
-  for (const p of c) v.push(p.x, p.y, p.z);
-  const idx = [];
-  for (let i = 2; i <= 5; i++) idx.push(0, i - 1, i);
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.setIndex(idx);
-  return g;
-})();
+const overlayLinePts = (() => { const c = hexCorners(HEX_SIZE * 0.85); c.push(c[0].clone()); return c; })();
+const overlayLineGeo = new THREE.BufferGeometry().setFromPoints(overlayLinePts);
 
-const moveMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.35, depthWrite: false });
-const atkMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.35, depthWrite: false });
+const moveMat = new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.7 });
+const atkMat = new THREE.LineBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.7 });
 
 let overlayMeshes = [];
 
@@ -345,7 +332,7 @@ function clearOverlays() {
 
 function showMoveOverlays(hexes) {
   for (const h of hexes) {
-    const m = new THREE.Mesh(overlayGeo.clone(), moveMat.clone());
+    const m = new THREE.Line(overlayLineGeo.clone(), moveMat.clone());
     m.position.set(h.worldX, 0, h.worldZ);
     overlayGroup.add(m);
     overlayMeshes.push(m);
@@ -353,7 +340,7 @@ function showMoveOverlays(hexes) {
 }
 
 function showAttackOverlay(hex) {
-  const m = new THREE.Mesh(overlayGeo.clone(), atkMat.clone());
+  const m = new THREE.Line(overlayLineGeo.clone(), atkMat.clone());
   m.position.set(hex.worldX, 0, hex.worldZ);
   overlayGroup.add(m);
   overlayMeshes.push(m);
@@ -372,36 +359,32 @@ function createUnit(col, row, owner, tex, name) {
   const wx = hd.worldX, wz = hd.worldZ;
   group.position.set(wx, 0, wz);
 
-  // Base disc
-  const baseGeo = new THREE.CylinderGeometry(0.35, 0.4, 0.06, 24);
-  const baseMat = new THREE.MeshStandardMaterial({
-    color: owner === 'player' ? 0x4488ff : 0xff4444,
-    roughness: 0.4,
-    metalness: 0.3,
-  });
-  const base = new THREE.Mesh(baseGeo, baseMat);
-  base.position.y = 0.03;
-  group.add(base);
-
   // Character sprite
-  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(0.7, 0.7, 1);
-  sprite.position.y = 0.45;
+  sprite.scale.y = 0.7;
+  if (tex.image && tex.image.width) {
+    sprite.scale.x = 0.7 * (tex.image.width / tex.image.height);
+  } else {
+    sprite.scale.x = 0.5;
+    tex.addEventListener('load', () => {
+      sprite.scale.x = 0.7 * (tex.image.width / tex.image.height);
+    });
+  }
+  sprite.position.y = 0.35;
   group.add(sprite);
 
-  // HP bar (Sprite-based, always faces camera)
+  // HP bar (Sprite-based, below character)
   const hpCanvas = document.createElement('canvas');
   hpCanvas.width = 64; hpCanvas.height = 10;
   const hpCtx = hpCanvas.getContext('2d');
   hpCtx.fillStyle = '#222'; hpCtx.fillRect(0, 0, 64, 10);
   hpCtx.fillStyle = '#4c4'; hpCtx.fillRect(2, 2, 60, 6);
-  hpCtx.strokeStyle = '#000'; hpCtx.strokeRect(0, 0, 64, 10);
   const hpTex = new THREE.CanvasTexture(hpCanvas);
-  const hpMat = new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthWrite: false });
+  const hpMat = new THREE.SpriteMaterial({ map: hpTex, transparent: true });
   const hpSprite = new THREE.Sprite(hpMat);
-  hpSprite.scale.set(0.5, 0.07, 1);
-  hpSprite.position.y = 0.85;
+  hpSprite.scale.set(0.5, 0.06, 1);
+  hpSprite.position.y = -0.05;
   group.add(hpSprite);
 
   scene.add(group);
@@ -419,8 +402,6 @@ function createUnit(col, row, owner, tex, name) {
     attackDmg: ATK_DMG,
     group,
     sprite,
-    base,
-    baseMat,
     hpSprite,
     hpCanvas,
     hpCtx,
@@ -443,6 +424,7 @@ function positionUnitOnHex(unit, col, row) {
   unit.group.position.set(hd.worldX, 0, hd.worldZ);
   unit.col = col;
   unit.row = row;
+  unit.hexData = hd;
 }
 
 function updateHPBar(unit) {
