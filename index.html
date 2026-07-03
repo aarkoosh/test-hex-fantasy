@@ -129,7 +129,7 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 12, 15);
+camera.position.set(0, 18, 14);
 camera.lookAt(0, 0, -3.5);
 
 // Lights
@@ -323,7 +323,7 @@ const overlayGroup = new THREE.Group();
 overlayGroup.position.y = 0.01;
 scene.add(overlayGroup);
 
-const overlayLinePts = (() => { const c = hexCorners(HEX_SIZE * 0.85); c.push(c[0].clone()); return c; })();
+const overlayLinePts = (() => { const c = hexCorners(HEX_SIZE); c.push(c[0].clone()); return c; })();
 const overlayLineGeo = new THREE.BufferGeometry().setFromPoints(overlayLinePts);
 
 const moveMat = new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.7 });
@@ -347,7 +347,7 @@ function showMoveOverlays(hexes) {
 
 function showAttackOverlay(hex) {
   const m = new THREE.Line(overlayLineGeo.clone(), atkMat.clone());
-  m.position.set(hex.worldX, 0, hex.worldZ);
+  m.position.set(hex.worldX, 0.005, hex.worldZ);
   overlayGroup.add(m);
   overlayMeshes.push(m);
 }
