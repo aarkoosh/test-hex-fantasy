@@ -105,7 +105,6 @@ canvas{display:block}
 
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ============ CONSTANTS ============
 const HEX_SIZE = 0.9;
@@ -134,17 +133,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
 scene.fog = new THREE.Fog(0x1a1a2e, 22, 38);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 50);
-camera.position.set(0, 12, 13);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.minDistance = 6;
-controls.maxDistance = 25;
-controls.maxPolarAngle = Math.PI / 2.15;
-controls.update();
+const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
+camera.position.set(8, 10, 10);
+camera.lookAt(0, 0, 0);
 
 // Lights
 const ambLight = new THREE.AmbientLight(0x404060, 0.5);
@@ -815,7 +806,6 @@ window.addEventListener('resize', () => {
 // ============ GAME LOOP ============
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
   renderer.render(scene, camera);
 }
 animate();
@@ -827,11 +817,6 @@ updateHPBar(playerUnit);
 updateHPBar(aiUnit);
 startPlayerTurn();
 showMsg('Select your Hero to begin');
-
-// Camera start angle
-controls.target.set(0, 0, 0);
-camera.position.set(6, 10, 12);
-controls.update();
 
 console.log('Hex Fantasy Strategy loaded. Good luck!');
 </script>
