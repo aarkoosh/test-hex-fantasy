@@ -399,10 +399,11 @@ function createUnit(col, row, owner, tex, name, unitClass, faction) {
   group.add(sprite);
 
   // HP text (Sprite-based number display below character)
+  const hpBgColor = owner === 'player' ? '#2244aa' : '#aa2222';
   const hpCanvas = document.createElement('canvas');
   hpCanvas.width = 48; hpCanvas.height = 22;
   const hpCtx = hpCanvas.getContext('2d');
-  hpCtx.fillStyle = '#222'; hpCtx.fillRect(0, 0, 48, 22);
+  hpCtx.fillStyle = hpBgColor; hpCtx.fillRect(0, 0, 48, 22);
   hpCtx.fillStyle = '#fff';
   hpCtx.font = 'bold 13px monospace';
   hpCtx.textAlign = 'center';
@@ -437,6 +438,7 @@ function createUnit(col, row, owner, tex, name, unitClass, faction) {
     hpSprite,
     hpCanvas,
     hpCtx,
+    hpBgColor,
     hexData: hd,
     alive: true,
   };
@@ -463,9 +465,8 @@ function updateHPBar(unit) {
   const ctx = unit.hpCtx;
   const c = unit.hpCanvas;
   ctx.clearRect(0, 0, c.width, c.height);
-  ctx.fillStyle = '#222'; ctx.fillRect(0, 0, c.width, c.height);
-  const color = unit.hp > 7 ? '#4c4' : unit.hp > 4 ? '#cc4' : '#c44';
-  ctx.fillStyle = color;
+  ctx.fillStyle = unit.hpBgColor; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#fff';
   ctx.font = 'bold 13px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
