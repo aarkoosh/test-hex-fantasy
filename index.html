@@ -126,6 +126,14 @@ canvas{display:block}
   </div>
 </div>
 
+<script>
+window.__esModuleTimeout = setTimeout(function () {
+  var hud = document.getElementById('hud');
+  if (hud) hud.innerHTML = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#111;color:#f44;padding:32px;text-align:center;font-family:sans-serif"><h1>Failed to Load</h1><p style="margin-top:12px;color:#999">Your browser does not support import maps or Three.js failed to load.<br>Please try a modern browser like Chrome, Firefox, or Edge.</p></div>';
+  var c = document.querySelector('canvas');
+  if (c) c.remove();
+}, 5000);
+</script>
 <script type="importmap">
 {
   "imports": {
@@ -136,6 +144,7 @@ canvas{display:block}
 </script>
 
 <script type="module">
+clearTimeout(window.__esModuleTimeout);
 import * as THREE from 'three';
 
 // ============ CONSTANTS ============
@@ -166,27 +175,24 @@ camera.position.set(0, 18, 14);
 camera.lookAt(0, 0, -3.5);
 
 // ============ TEXTURES & LOADING ============
-function loadImageAsTexture(src, onLoad) {
-  const img = new Image();
-  const canvas = document.createElement('canvas');
-  const tex = new THREE.CanvasTexture(canvas);
-  img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    tex.needsUpdate = true;
-    if (onLoad) onLoad(tex);
-  };
-  img.src = src;
-  return tex;
+function loadImageAsTexture(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const tex = new THREE.Texture(img);
+      tex.needsUpdate = true;
+      resolve(tex);
+    };
+    img.onerror = () => reject(new Error('Failed to load: ' + url));
+    img.src = url;
+  });
 }
 
-const mapTex = loadImageAsTexture('Map-1.png', (t) => {
-  scene.background = t;
-});
-const charTex1 = loadImageAsTexture('Character-1.png');
-const charTex2 = loadImageAsTexture('Character-2.png');
+const texPromises = [
+  loadImageAsTexture('Map-1.png'),
+  loadImageAsTexture('Character-1.png'),
+  loadImageAsTexture('Character-2.png'),
+];
 
 // ============ HEX UTILITIES ============
 function oddrToWorld(col, row) {
@@ -202,19 +208,6 @@ function hexCorners(size) {
     pts.push(new THREE.Vector3(size * Math.cos(a), 0, size * Math.sin(a)));
   }
   return pts;
-}
-
-function worldToOddr(wx, wz) {
-  let best = null;
-  let bestDist = Infinity;
-  for (let c = 0; c < GRID_COLS; c++) {
-    for (let r = 0; r < GRID_ROWS; r++) {
-      const p = oddrToWorld(c, r);
-      const d = (wx - p.x) ** 2 + (wz - p.z) ** 2;
-      if (d < bestDist) { bestDist = d; best = { col: c, row: r }; }
-    }
-  }
-  return best;
 }
 
 // BFS: find all hexes reachable within maxSteps, returns map of "col,row" -> path[]
@@ -506,13 +499,14 @@ function canAttack(attacker, target) {
 }
 
 function resolveAttack(attacker, target) {
-  target.hp -= attacker.attackDmg;
+  const damage = Math.max(1, attacker.attackDmg - target.displayArmor);
+  target.hp -= damage;
   if (target.hp < 0) target.hp = 0;
   updateHPBar(target);
   attacker.ap -= ATTACK_AP;
   if (attacker.ap < 0) attacker.ap = 0;
 
-  showMsg(`${attacker.name} attacks ${target.name} for ${attacker.attackDmg} damage!`);
+  showMsg(`${attacker.name} attacks ${target.name} for ${damage} damage!`);
 
   if (target.hp <= 0) {
     target.alive = false;
@@ -586,8 +580,6 @@ function runAI() {
   // Check if can attack
   if (canAttack(aiUnit, playerUnit) && aiUnit.ap >= ATTACK_AP) {
     resolveAttack(aiUnit, playerUnit);
-  
-    checkGameOver();
     if (gameState !== STATE.GAME_OVER) setTimeout(startPlayerTurn, 1000);
     return;
   }
@@ -626,8 +618,6 @@ function runAI() {
   // Try attack after move
   if (canAttack(aiUnit, playerUnit) && aiUnit.ap >= ATTACK_AP) {
     resolveAttack(aiUnit, playerUnit);
-  
-    checkGameOver();
   }
 
   setTimeout(startPlayerTurn, 1000);
@@ -677,8 +667,6 @@ function moveUnit(unit, col, row) {
   hexData[col][row].occupant = unit;
   unit.ap -= steps * MOVE_AP;
 
-  checkGameOver();
-  if (gameState === STATE.GAME_OVER) return;
   if (unit.ap > 0) {
     selectUnit(unit);
   } else {
@@ -693,7 +681,6 @@ function attackUnit(attacker, target) {
   if (!canAttack(attacker, target)) return;
   if (attacker.ap < ATTACK_AP) { showMsg('Not enough AP!'); return; }
   resolveAttack(attacker, target);
-  checkGameOver();
   if (gameState === STATE.GAME_OVER) return;
   if (attacker.ap > 0) {
     selectUnit(attacker);
@@ -733,7 +720,9 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   if (unit !== hoveredUnit) {
     hoveredUnit = unit;
     if (unit) {
-      document.getElementById('tip-img').src = PORTRAITS[unit.owner];
+      const tipImg = document.getElementById('tip-img');
+      tipImg.src = PORTRAITS[unit.owner];
+      tipImg.onerror = () => { tipImg.style.display = 'none'; };
       document.getElementById('tip-name').textContent = unit.name;
       document.getElementById('tip-class').textContent = unit.unitClass;
       document.getElementById('tip-faction').textContent = unit.faction;
@@ -747,8 +736,8 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     }
   }
   if (unit) {
-    tooltipEl.style.left = Math.min(e.clientX + 16, window.innerWidth - 220) + 'px';
-    tooltipEl.style.top = Math.min(e.clientY - 10, window.innerHeight - 130) + 'px';
+    tooltipEl.style.left = Math.max(0, Math.min(e.clientX + 16, window.innerWidth - 220)) + 'px';
+    tooltipEl.style.top = Math.max(0, Math.min(e.clientY - 10, window.innerHeight - 130)) + 'px';
   }
 });
 
@@ -830,6 +819,7 @@ function buildTimeline() {
     div.className = 'slot';
     const img = document.createElement('img');
     img.alt = '';
+    img.onerror = () => { img.style.display = 'none'; };
     div.appendChild(img);
     el.appendChild(div);
   }
@@ -870,15 +860,20 @@ function animate() {
 animate();
 
 // ============ INIT ============
-playerUnit = createUnit(1, 3, 'player', charTex1, 'Aragorn', 'Ranger', 'Rohan');
-aiUnit = createUnit(8, 4, 'ai', charTex2, 'Goblin', 'Orc', 'Mordor');
-updateHPBar(playerUnit);
-updateHPBar(aiUnit);
-updateUnitCounts();
-startPlayerTurn();
-showMsg('Select your Hero to begin');
-
-console.log('Hex Fantasy Strategy loaded. Good luck!');
+Promise.all(texPromises).then(([mapTex, charTex1, charTex2]) => {
+  scene.background = mapTex;
+  playerUnit = createUnit(1, 3, 'player', charTex1, 'Aragorn', 'Ranger', 'Rohan');
+  aiUnit = createUnit(8, 4, 'ai', charTex2, 'Goblin', 'Orc', 'Mordor');
+  updateHPBar(playerUnit);
+  updateHPBar(aiUnit);
+  updateUnitCounts();
+  startPlayerTurn();
+  showMsg('Select your Hero to begin');
+  console.log('Hex Fantasy Strategy loaded. Good luck!');
+}).catch((err) => {
+  console.error('Texture loading failed:', err);
+  showMsg('Failed to load game assets. Please refresh and try again.');
+});
 </script>
 </body>
 </html>
