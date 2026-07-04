@@ -6,7 +6,7 @@
 <title>Hex Fantasy Strategy</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{overflow:hidden;background:#111;font-family:'Segoe UI',sans-serif;color:#fff;user-select:none}
+body{overflow:hidden;background:#111 url('Map-1.png') no-repeat center;background-size:auto;font-family:'Segoe UI',sans-serif;color:#fff;user-select:none}
 canvas{display:block}
 
 #hud{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
@@ -25,11 +25,8 @@ canvas{display:block}
   padding:10px 32px;border:none;
   font-size:14px;font-weight:700;cursor:pointer;
   background:linear-gradient(135deg,#4a4,#2a4);color:#fff;
-  transition:transform 0.15s,opacity 0.3s
 }
-#end-turn-btn:hover{}
-#end-turn-btn:active{transform:scale(0.95)}
-#end-turn-btn:disabled{opacity:0.4;cursor:default;transform:none}
+#end-turn-btn.disabled{opacity:0.4;cursor:default}
 
 #game-over{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -161,10 +158,10 @@ const ATK_RANGE = 2;
 const S3 = Math.sqrt(3);
 
 // ============ SCENE SETUP ============
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(0x000000);
+renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.NoToneMapping;
 document.body.prepend(renderer.domElement);
 
@@ -190,7 +187,6 @@ function loadImageAsTexture(url) {
 }
 
 const texPromises = [
-  loadImageAsTexture('Map-1.png'),
   loadImageAsTexture('Character-1.png'),
   loadImageAsTexture('Character-2.png'),
 ];
@@ -553,13 +549,15 @@ function startPlayerTurn() {
   playerUnit.ap = MAX_AP;
   updateHPBar(playerUnit);
   clearOverlays();
-  document.getElementById('end-turn-btn').disabled = false;
+  document.getElementById('end-turn-btn').classList.remove('disabled');
   updateTimeline('player');
 }
 
 function endPlayerTurn() {
   if (gameState === STATE.GAME_OVER) return;
-  document.getElementById('end-turn-btn').disabled = true;
+  if (gameState === STATE.AI_TURN) { showMsg('Please wait for your turn.'); return; }
+  if (gameState !== STATE.IDLE && gameState !== STATE.SELECTED) return;
+  document.getElementById('end-turn-btn').classList.add('disabled');
   clearOverlays();
   selectedUnit = null;
   gameState = STATE.AI_TURN;
@@ -888,8 +886,7 @@ function animate() {
 animate();
 
 // ============ INIT ============
-Promise.all(texPromises).then(([mapTex, charTex1, charTex2]) => {
-  scene.background = mapTex;
+Promise.all(texPromises).then(([charTex1, charTex2]) => {
   playerUnit = createUnit(1, 3, 'player', charTex1, 'Aragorn', 'Ranger', 'Rohan');
   aiUnit = createUnit(8, 4, 'ai', charTex2, 'Goblin', 'Orc', 'Mordor');
   updateHPBar(playerUnit);
